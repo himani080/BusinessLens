@@ -296,5 +296,39 @@ function processRowData(row, columns) {
   return processed;
 }
 
+async function calculateMetadata(data, columns) {
+  const metadata = {};
+  
+  // Find date column
+  const dateColumn = columns.find(col => col.mappedTo === 'date');
+  if (dateColumn) {
+    const dates = data.map(row => new Date(row[dateColumn.name]))
+      .filter(date => !isNaN(date));
+    
+    if (dates.length > 0) {
+      metadata.dateRange = {
+        start: new Date(Math.min(...dates)),
+        end: new Date(Math.max(...dates))
+      };
+    }
+  }
+  
+  // Calculate revenue metrics
+  const revenueColumn = columns.find(col => col.mappedTo === 'revenue');
+  if (revenueColumn) {
+    const revenues = data.map(row => parseFloat(row[revenueColumn.name]) || 0);
+    metadata.totalRevenue = revenues.reduce((sum, val) => sum + val, 0);
+    metadata.avgOrderValue = metadata.totalRevenue / data.length;
+  }
+  
+  // Count unique customers
+  const customerColumn = columns.find(col => col.mappedTo === 'customer_id');
+  if (customerColumn) {
+    const uniqueCustomers = new Set(data.map(row => row[customerColumn.name]));
+    metadata.uniqueCustomers = uniqueCustomers.size;
+  }
+  
+  return metadata;
+}
 
 export default router;
