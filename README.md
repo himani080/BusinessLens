@@ -137,8 +137,8 @@ Seamless integration with **Stripe** allows:
 
 ## 📷 Screenshots
 
-![alt text](<Screenshot 2025-07-01 174536.png>) ![alt text](<Screenshot 2025-07-01 173832.png>) ![alt text](<Screenshot 2025-07-01 174417.png>) ![alt text](<Screenshot 2025-07-01 174424.png>) ![alt text](<Screenshot 2025-07-01 174433.png>) ![alt text](<Screenshot 2025-07-01 174442.png>) ![alt text](<Screenshot 2025-07-01 174455.png>)
-
+  ![alt text](<Screenshot 2025-07-01 174417.png>) ![alt text](<Screenshot 2025-07-01 174424.png>) ![alt text](<Screenshot 2025-07-01 174433.png>) ![alt text](<Screenshot 2025-07-01 174442.png>) ![alt text](<Screenshot 2025-07-01 174455.png>)
+![c:\Users\arora\OneDrive\Pictures\Screenshots\Screenshot 2025-07-01 173652.png](<Screenshot 2025-07-01 173746.png>) ![alt text](<Screenshot 2025-07-01 174536.png>)![alt text](image.png)
 ---
 
 ## 📫 Contact
