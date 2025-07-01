@@ -137,16 +137,14 @@ Seamless integration with **Stripe** allows:
 
 ## 📷 Screenshots
 
-Coming soon...
+![alt text](<Screenshot 2025-07-01 174536.png>) ![alt text](<Screenshot 2025-07-01 173832.png>) ![alt text](<Screenshot 2025-07-01 174417.png>) ![alt text](<Screenshot 2025-07-01 174424.png>) ![alt text](<Screenshot 2025-07-01 174433.png>) ![alt text](<Screenshot 2025-07-01 174442.png>) ![alt text](<Screenshot 2025-07-01 174455.png>)
 
 ---
 
 ## 📫 Contact
 
 - **Author:** Himani Arora  
-- **Email:** your_email@gmail.com  
-- **GitHub:** [@your-username](https://github.com/your-username)  
-- **Portfolio:** [your-portfolio.com](https://your-portfolio.com)
+- **Email:** arorahimani080@gmail.com
 
 ---
 
