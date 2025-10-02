@@ -18,7 +18,7 @@ const dataRecordSchema = new mongoose.Schema(
     },
     processedData: {
       revenue: Number,
-      date: Date,
+      date: { type: Date, required: false },
       customerId: String,
       productId: String,
       quantity: Number,

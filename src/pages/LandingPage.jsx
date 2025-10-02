@@ -347,7 +347,7 @@ const LandingPage = () => {
               <span className="text-xl font-bold">Smart SaaS Dashboard</span>
             </div>
             <p className="text-gray-400">
-              © 2024 Smart SaaS Dashboard. All rights reserved.
+              © 2025 Smart SaaS Dashboard. All rights reserved.
             </p>
           </div>
         </div>
