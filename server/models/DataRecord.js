@@ -35,4 +35,20 @@ const dataRecordSchema = new mongoose.Schema(
 dataRecordSchema.index({ userId: 1, "processedData.date": 1 });
 dataRecordSchema.index({ userId: 1, businessDataId: 1 });
 
+// Pre-save middleware to ensure processedData has numbers
+dataRecordSchema.pre('save', function(next) {
+  if (this.processedData) {
+    if (this.processedData.revenue) {
+      this.processedData.revenue = Number(this.processedData.revenue);
+    }
+    if (this.processedData.price) {
+      this.processedData.price = Number(this.processedData.price);
+    }
+    if (this.processedData.quantity) {
+      this.processedData.quantity = Number(this.processedData.quantity);
+    }
+  }
+  next();
+});
+
 export default mongoose.model("DataRecord", dataRecordSchema);

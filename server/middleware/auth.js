@@ -17,8 +17,12 @@ export const auth = async (req, res, next) => {
       return res.status(401).json({ message: 'User not found' });
     }
 
+    // Set both for backward compatibility
     req.userId = decoded.userId;
-    req.user = user;
+    req.user = {
+      ...user.toObject(),
+      id: decoded.userId
+    };
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

@@ -24,6 +24,7 @@ async function calculateMetrics(records = [], previousPeriodRecords = []) {
     totalRevenue: 0,
     totalOrders: records.length,
     uniqueCustomers: new Set(),
+    avgOrderValue: 0,
     topProducts: {},
     topCategories: {},
     timeDistribution: {},
@@ -57,15 +58,19 @@ async function calculateMetrics(records = [], previousPeriodRecords = []) {
   // Initialize and calculate previous period metrics
   const previousMetrics = {
     totalRevenue: 0,
-    totalOrders: 0,
+    totalOrders: previousPeriodRecords.length,
     uniqueCustomers: new Set(),
+    avgOrderValue: 0,
   };
 
   // Process previous period records if available
   previousPeriodRecords.forEach((record) => {
     const data = record.processedData;
-    previousMetrics.totalRevenue += data.revenue || 0;
-    previousMetrics.totalOrders++;
+    if (data.revenue && !isNaN(data.revenue)) {
+      previousMetrics.totalRevenue += Number(data.revenue);
+    } else if (data.price && data.quantity && !isNaN(data.price) && !isNaN(data.quantity)) {
+      previousMetrics.totalRevenue += Number(data.price) * Number(data.quantity);
+    }
     if (data.customerId) {
       previousMetrics.uniqueCustomers.add(data.customerId);
     }
@@ -75,8 +80,10 @@ async function calculateMetrics(records = [], previousPeriodRecords = []) {
     const data = record.processedData;
 
     // Revenue and order calculations
-    if (data.revenue) {
-      metrics.totalRevenue += data.revenue;
+    if (data.revenue && !isNaN(data.revenue)) {
+      metrics.totalRevenue += Number(data.revenue);
+    } else if (data.price && data.quantity && !isNaN(data.price) && !isNaN(data.quantity)) {
+      metrics.totalRevenue += Number(data.price) * Number(data.quantity);
     }
 
     // Customer tracking and retention
@@ -197,11 +204,11 @@ router.get("/dashboard", auth, async (req, res) => {
     const { period = "monthly", timeframe = "6" } = req.query;
 
     // Get current period metrics
-    const currentMetrics = await getCurrentPeriodMetrics(req.userId, period);
+    const currentMetrics = await getCurrentPeriodMetrics(req.user.id, period);
 
     // Get historical data for charts
     const historicalData = await getHistoricalData(
-      req.userId,
+      req.user.id,
       period,
       parseInt(timeframe)
     );
@@ -210,7 +217,7 @@ router.get("/dashboard", auth, async (req, res) => {
     const growthRates = await calculateGrowthRates(req.userId, period);
 
     // Get top performing categories/products
-    const topCategories = await getTopCategories(req.userId);
+    const topCategories = await getTopCategories(req.user.id);
 
     res.json({
       currentMetrics,
@@ -269,6 +276,7 @@ router.get("/revenue-trends", auth, async (req, res) => {
 
 // Helper functions
 async function getCurrentPeriodMetrics(userId, period) {
+  console.log('Getting current period metrics for user:', userId, 'period:', period);
   const now = new Date();
   let startDate;
 
@@ -287,10 +295,45 @@ async function getCurrentPeriodMetrics(userId, period) {
   }
 
   // Get all records for the current period
-  const records = await DataRecord.find({
-    userId,
-    "processedData.date": { $gte: startDate, $lte: now },
-  });
+    // First try without date filter to see if we have any records at all
+    const allRecords = await DataRecord.find({ userId });
+    console.log("Total records for user:", allRecords.length);
+    
+    if (allRecords.length > 0) {
+        console.log("Sample record:", {
+            processedData: allRecords[0].processedData,
+            rawData: allRecords[0].data
+        });
+    }
+    
+    // Get records based on the period
+    const records = await DataRecord.find({
+      userId,
+      $or: [
+        { 
+          "processedData.date": { 
+            $gte: startDate, 
+            $lte: now 
+          } 
+        },
+        // Include records with null dates for now (we'll filter them later)
+        { "processedData.date": null }
+      ]
+    }).sort({ "processedData.date": -1 });
+
+    console.log("Sample records dates:", records.slice(0, 3).map(r => ({
+      date: r.processedData.date,
+      revenue: r.processedData.revenue,
+      productId: r.processedData.productId,
+      category: r.processedData.category
+    })));
+    
+    console.log("Filtered records:", records.length);
+    console.log("Date range:", { startDate, now });
+    if (allRecords.length > 0) {
+      console.log("Sample record date:", allRecords[0].processedData?.date);
+    }  console.log('Found records:', records.length);
+  console.log('First record example:', records[0]?.processedData);
 
   // Calculate metrics from the records
   const metrics = {
@@ -306,9 +349,13 @@ async function getCurrentPeriodMetrics(userId, period) {
     const data = record.processedData;
 
     // Revenue and value calculations
-    metrics.totalRevenue += data.revenue || 0;
-    const orderValue = data.price * (data.quantity || 1) || 0;
-    totalValue += orderValue;
+    if (data.revenue && !isNaN(data.revenue)) {
+      metrics.totalRevenue += Number(data.revenue);
+    } else if (data.price && data.quantity) {
+      const orderValue = Number(data.price) * (Number(data.quantity) || 1);
+      metrics.totalRevenue += orderValue;
+      totalValue += orderValue;
+    }
 
     // Track unique customers
     if (data.customerId) {

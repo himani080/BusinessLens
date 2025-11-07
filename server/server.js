@@ -4,6 +4,29 @@ import dotenv from "dotenv";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
+import pkg from "prom-client";
+const { Registry, Histogram, Counter, collectDefaultMetrics } = pkg;
+
+// Create a Registry to store metrics
+const register = new Registry();
+collectDefaultMetrics({ register });
+
+// Custom metrics
+const httpRequestDuration = new Histogram({
+  name: "http_request_duration_seconds",
+  help: "Duration of HTTP requests in seconds",
+  labelNames: ["method", "route", "status_code"],
+  buckets: [0.1, 0.5, 1, 2, 5],
+});
+
+const httpRequestTotal = new Counter({
+  name: "http_requests_total",
+  help: "Total number of HTTP requests",
+  labelNames: ["method", "route", "status_code"],
+});
+
+register.registerMetric(httpRequestDuration);
+register.registerMetric(httpRequestTotal);
 
 // Import routes
 import authRoutes from "./routes/auth.js";
@@ -30,6 +53,29 @@ app.use(
     credentials: true,
   })
 );
+
+// Metrics middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    httpRequestDuration
+      .labels(req.method, req.path, res.statusCode)
+      .observe(duration / 1000);
+    httpRequestTotal.labels(req.method, req.path, res.statusCode).inc();
+  });
+  next();
+});
+
+// Metrics endpoint
+app.get("/metrics", async (req, res) => {
+  try {
+    res.set("Content-Type", register.contentType);
+    res.end(await register.metrics());
+  } catch (err) {
+    res.status(500).end(err);
+  }
+});
 
 // Import rate limiters
 import {

@@ -48,6 +48,8 @@ const upload = multer({
 // Upload and analyze data file
 router.post("/upload", auth, upload.single("dataFile"), async (req, res) => {
   try {
+    console.log("Upload request from user:", req.user.id);
+    
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
@@ -97,9 +99,11 @@ router.post("/upload", auth, upload.single("dataFile"), async (req, res) => {
         }
       }
 
+      console.log("Processing data for user:", req.user.id);
+      
       // Save business data metadata
       const businessData = new BusinessData({
-        userId: req.userId,
+        userId: req.user.id,
         fileName: originalname,
         fileType: fileExt.substring(1),
         columns,
@@ -110,11 +114,23 @@ router.post("/upload", auth, upload.single("dataFile"), async (req, res) => {
       await businessData.save();
 
       function suggestMapping(columnName) {
+        console.log("Suggesting mapping for column:", columnName);
         const normalized = columnName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+        
+        // Exact matches first
+        if (columnName === 'Date') return 'date';
+        if (columnName === 'Customer ID') return 'customer_id';
+        if (columnName === 'Product ID') return 'product_id';
+        if (columnName === 'Product Category') return 'category';
+        if (columnName === 'Quantity') return 'quantity';
+        if (columnName === 'Unit Price') return 'price';
+        if (columnName === 'Total Amount') return 'revenue';
 
         // Date fields
-        if (/date|time|when|timestamp|created|updated/i.test(columnName))
+        if (/date|time|when|timestamp|created|updated/i.test(normalized)) {
+          console.log("Mapped as date:", columnName);
           return "date";
+        }
 
         // Revenue/monetary fields
         if (/revenue|sales|amount|price|cost|value|total/i.test(columnName))
@@ -146,11 +162,13 @@ router.post("/upload", auth, upload.single("dataFile"), async (req, res) => {
       for (let i = 0; i < data.length; i += batchSize) {
         const batch = data.slice(i, i + batchSize);
         const records = batch.map((row) => ({
-          userId: req.userId,
+          userId: req.user.id,
           businessDataId: businessData._id,
           data: row,
           processedData: processRowData(row, columns),
         }));
+        
+        console.log("Sample processed record:", records[0]?.processedData);
 
         await DataRecord.insertMany(records);
       }
@@ -326,6 +344,9 @@ function suggestMapping(columnName) {
 }
 
 function processRowData(row, columns) {
+  console.log("Processing row:", row);
+  console.log("Column mappings:", columns.map(c => ({ name: c.name, mappedTo: c.mappedTo })));
+  
   const processed = {
     revenue: 0,
     date: null,
@@ -335,6 +356,54 @@ function processRowData(row, columns) {
     price: 0,
     category: "",
   };
+
+  // Find column names for each field
+  const columnMap = {};
+  columns.forEach(col => {
+    if (col.mappedTo !== 'none') {
+      columnMap[col.mappedTo] = col.name;
+    }
+  });
+
+  console.log("Column map:", columnMap);
+
+  // Process each field using the column map
+  if (columnMap['revenue']) {
+    processed.revenue = parseFloat(row[columnMap['revenue']]) || 0;
+  }
+
+  if (columnMap['price']) {
+    processed.price = parseFloat(row[columnMap['price']]) || 0;
+  }
+
+  if (columnMap['quantity']) {
+    processed.quantity = parseInt(row[columnMap['quantity']]) || 0;
+  }
+
+  if (columnMap['customer_id']) {
+    processed.customerId = String(row[columnMap['customer_id']]);
+  }
+
+  if (columnMap['product_id']) {
+    processed.productId = String(row[columnMap['product_id']]);
+  }
+
+  if (columnMap['category']) {
+    processed.category = String(row[columnMap['category']]);
+  }
+
+  if (columnMap['date']) {
+    const dateStr = String(row[columnMap['date']]);
+    const match = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (match) {
+      const [_, day, month, year] = match;
+      const parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      if (!isNaN(parsedDate.getTime())) {
+        processed.date = parsedDate;
+        console.log("Successfully parsed date:", dateStr, "->", parsedDate);
+      }
+    }
+  }
 
   columns.forEach((col) => {
     const value = row[col.name];
@@ -347,8 +416,57 @@ function processRowData(row, columns) {
         processed[col.mappedTo] = parseFloat(value) || 0;
         break;
       case "date":
-        const parsedDate = new Date(value);
-        processed.date = !isNaN(parsedDate.getTime()) ? parsedDate : null;
+        console.log("Processing date value:", value, typeof value);
+        let parsedDate;
+        if (typeof value === 'string') {
+          // Try different date formats
+          const formats = [
+            // DD-MM-YYYY format
+            {
+              regex: /^(\d{2})-(\d{2})-(\d{4})$/,
+              parse: (match) => new Date(match[3], match[2] - 1, match[1])
+            },
+            // Standard ISO format
+            {
+              regex: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+              parse: (match) => new Date(value)
+            },
+            // Date only ISO format
+            {
+              regex: /^(\d{4})-(\d{2})-(\d{2})$/,
+              parse: (match) => new Date(match[1], match[2] - 1, match[3])
+            },
+            // US date format MM/DD/YYYY
+            {
+              regex: /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+              parse: (match) => new Date(match[3], match[1] - 1, match[2])
+            },
+          ];
+          
+          const dateStr = value.trim();
+          for (const format of formats) {
+            const match = dateStr.match(format.regex);
+            if (match) {
+              parsedDate = format.parse(match);
+              if (!isNaN(parsedDate.getTime())) {
+                console.log("Successfully parsed date:", dateStr, "->", parsedDate);
+                break;
+              }
+            }
+          }
+          if (!parsedDate || isNaN(parsedDate.getTime())) {
+            console.log("Failed to parse date:", dateStr);
+            parsedDate = new Date();
+          }
+        } else if (typeof value === 'number') {
+          // Handle Excel date numbers
+          parsedDate = new Date((value - 25569) * 86400 * 1000);
+        } else {
+          parsedDate = new Date(value);
+        }
+        
+        processed.date = !isNaN(parsedDate.getTime()) ? parsedDate : new Date();
+        console.log("Processed date:", value, "->", processed.date);
         break;
       case "customer_id":
         processed.customerId = String(value || "");
